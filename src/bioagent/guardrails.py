@@ -43,7 +43,7 @@ def preflight(gene_symbol: str, toolbox: Toolbox, trace: ToolTrace) -> Resolutio
 
 
 # ------------------------------------------------------------------ post-flight
-def _drug_name_matches(claimed: str, returned: str) -> bool:
+def drug_name_matches(claimed: str, returned: str) -> bool:
     a, b = norm_name(claimed), norm_name(returned)
     return bool(a) and (a == b or a.startswith(b + " ") or b.startswith(a + " "))   # tolerates salt forms
 
@@ -71,9 +71,9 @@ def verify_citations(dossier: TargetDossier, trace: ToolTrace,
         if isinstance(claim, DrugClaim):
             if claim.chembl_id and claim.chembl_id not in drug_by_id:
                 reasons.append(f"{claim.chembl_id} was not returned by a drug tool")
-            elif claim.chembl_id and not _drug_name_matches(claim.drug_name, drug_by_id[claim.chembl_id]):
+            elif claim.chembl_id and not drug_name_matches(claim.drug_name, drug_by_id[claim.chembl_id]):
                 reasons.append(f"{claim.chembl_id} is {drug_by_id[claim.chembl_id]}, not {claim.drug_name}")
-            if not any(_drug_name_matches(claim.drug_name, n) for n in drug_by_id.values()):
+            if not any(drug_name_matches(claim.drug_name, n) for n in drug_by_id.values()):
                 reasons.append(f"drug '{claim.drug_name}' was not returned by a drug tool")
         fatal = [r for r in reasons if not r.startswith("evidence IDs not returned")]
         return not fatal, unknown, reasons
@@ -93,12 +93,13 @@ def verify_citations(dossier: TargetDossier, trace: ToolTrace,
 
     n = len(dossier.drug_claims) + len(dossier.mechanism_claims)
     n_ok = n - len(unverified)
+    n_cited = len({i for c in [*dossier.drug_claims, *dossier.mechanism_claims] for i in c.evidence_ids})
     cited = {i for c in [*kept_drugs, *kept_mech] for i in c.evidence_ids if i in index}
     verified = dossier.model_copy(update={
         "drug_claims": kept_drugs, "mechanism_claims": kept_mech,
         "evidence": [index[i] for i in sorted(cited)],
     })
-    report = Verification(mode=mode, n_claims=n, n_verified=n_ok,
+    report = Verification(mode=mode, n_claims=n, n_verified=n_ok, n_cited_ids=n_cited,
                           grounding_score=round(n_ok / n, 4) if n else None,
                           unverified_claims=unverified, ungrounded_ids=ungrounded)
     return verified, report

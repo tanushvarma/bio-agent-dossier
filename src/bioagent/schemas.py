@@ -264,6 +264,7 @@ class Verification(BaseModel):
     mode: Literal["strip", "flag"]
     n_claims: int
     n_verified: int
+    n_cited_ids: int = 0                        # distinct evidence IDs cited across all claims, before stripping
     grounding_score: float | None            # verified / total claims; None when there were no claims
     unverified_claims: list[UnverifiedClaim] = Field(default_factory=list)
     ungrounded_ids: list[str] = Field(default_factory=list)   # cited IDs no tool returned
