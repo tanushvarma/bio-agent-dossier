@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bioagent"
+version = "0.2.0"
+description = "Grounded target-dossier agent: Open Targets, NCBI and Europe PMC tools with citation verification."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "tenacity>=8.2",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "google-genai>=1.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
+app = ["streamlit>=1.50", "pandas>=2.0"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+bioagent = "bioagent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bioagent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = ["smoke: fast eval-harness checks on synthetic fixtures (pytest -m smoke)"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests", "evals"]
+# legacy/ holds the previous chat app for reference; it is not installed, linted or tested.
+extend-exclude = ["legacy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bioagent", "conftest", "evals"]

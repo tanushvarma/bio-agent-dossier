@@ -74,8 +74,8 @@ def _render_sidebar() -> None:
     st.caption("Open-source conversational research assistant")
 
     st.markdown("**API Status**")
-    st.write(f"Gemini: {'✅' if os.getenv('GEMINI_API_KEY') else '❌'}")
-    st.write(f"NCBI key: {'✅' if os.getenv('NCBI_API_KEY') else 'email only'}")
+    st.write(f"Gemini: {'set' if os.getenv('GEMINI_API_KEY') else 'missing'}")
+    st.write(f"NCBI key: {'set' if os.getenv('NCBI_API_KEY') else 'email only'}")
 
     st.divider()
     st.markdown("**Session State**")
@@ -118,7 +118,7 @@ def _render_tool_events(events: list[dict[str, Any]]) -> None:
                 result = event.get("result", {})
                 status = result.get("status", "unknown")
                 summary = result.get("summary") or result.get("error") or status
-                st.caption(f"✓ {event['tool']}: {summary}")
+                st.caption(f"done: {event['tool']}: {summary}")
 
 
 def _render_artifacts(state: AgentState) -> None:
@@ -141,7 +141,6 @@ def _render_artifacts(state: AgentState) -> None:
 def main() -> None:
     st.set_page_config(
         page_title="Bio-Agent",
-        page_icon="🧬",
         layout="wide",
     )
     _load_runtime_secrets()
