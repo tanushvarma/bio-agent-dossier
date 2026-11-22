@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from typing import Any
 
 from ..config import ConfigError
@@ -11,9 +12,16 @@ from ._http import JsonHttp, Throttle
 EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
+_SHARED: dict[float, Throttle] = {}
+_SHARED_LOCK = threading.Lock()
+
+
 def ncbi_throttle(api_key: str | None) -> Throttle:
-    """NCBI policy: at most 3 requests/s without an API key, 10/s with one."""
-    return Throttle(0.11 if api_key else 0.34)
+    """NCBI policy: at most 3 requests/s without an API key, 10/s with one. The limit is per
+    machine, so every client in the process shares one throttle (eval workers included)."""
+    interval = 0.11 if api_key else 0.34
+    with _SHARED_LOCK:
+        return _SHARED.setdefault(interval, Throttle(interval))
 
 
 class NcbiClient:

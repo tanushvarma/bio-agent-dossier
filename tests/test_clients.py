@@ -13,6 +13,7 @@ from bioagent.clients import (
     RetryableHTTPError,
     Throttle,
 )
+from bioagent.clients.ncbi import ncbi_throttle
 from bioagent.config import ConfigError
 from conftest import EGFR, make_http
 
@@ -142,3 +143,9 @@ def test_europepmc_cleans_html_and_skips_records_without_pmid(world):
     assert arts[0].abstract_text == "Background Third-generation EGFR inhibitor & T790M."
     q = world.calls[0].url.params["query"]
     assert "SRC:MED" in q and "HAS_ABSTRACT:Y" in q and world.calls[0].url.params["resultType"] == "core"
+
+
+def test_ncbi_throttle_is_shared_process_wide():
+    assert ncbi_throttle(None) is ncbi_throttle(None)                # all eval workers share one limiter
+    assert ncbi_throttle("key") is not ncbi_throttle(None)
+    assert ncbi_throttle(None).min_interval_s == 0.34 and ncbi_throttle("key").min_interval_s == 0.11

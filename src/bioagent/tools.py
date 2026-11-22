@@ -107,7 +107,7 @@ def resolve_symbol(symbol: str, ot: OpenTargetsClient, ncbi: NcbiClient | None) 
 
     if len(set(exact)) > 1 or len(entrez_ids) > 1:
         return Resolution(status="ambiguous", query=symbol, candidates=sorted(set(exact.values())) or candidates,
-                          notes=notes + [f"{len(exact)} Ensembl and {len(entrez_ids)} Entrez exact matches"])
+                          notes=[*notes, f"{len(exact)} Ensembl and {len(entrez_ids)} Entrez exact matches"])
     ensembl_id = next(iter(exact), None)
     entrez_id = entrez_ids[0] if entrez_ids else None
     if not ensembl_id and not entrez_id:

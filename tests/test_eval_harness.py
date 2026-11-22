@@ -9,6 +9,7 @@ import json
 import pytest
 
 from bioagent.clients import NcbiClient, OpenTargetsClient
+from bioagent.pricing import cost_usd
 from bioagent.schemas import (
     DrugClaim,
     LLMCall,
@@ -23,8 +24,8 @@ from bioagent.schemas import (
 )
 from conftest import EGFR, make_http
 from evals.build_dataset import build, stage_rank
-from evals.metrics import aggregate, cost_usd, percentile, score_case, to_markdown
-from evals.run_eval import evaluate, select
+from evals.metrics import aggregate, percentile, score_case, to_markdown
+from evals.run_eval import BEGIN, END, evaluate, select, update_readme
 
 pytestmark = pytest.mark.smoke
 
@@ -219,3 +220,14 @@ def test_builder_verifies_every_record(world):
     assert "not format-valid" in reasons
     assert "IS linked to EGFR" in reasons               # GEFITINIB is a real EGFR drug, not a negative
     assert meta["clinical_stages_seen"] == {"APPROVAL": 4}             # 2 drugs x 2 EGFR seeds checked
+
+
+def test_update_readme_replaces_only_the_marked_block(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text(f"# T\n\n## Benchmark\n{BEGIN}\nold\n{END}\n\n## Next\n", encoding="utf-8")
+    assert update_readme(readme, "# bioagent evaluation summary\n\n| Metric | Value |\n|---|---|\n| X | 1 |\n")
+    text = readme.read_text(encoding="utf-8")
+    assert "old" not in text and "| X | 1 |" in text and "# bioagent evaluation summary" not in text
+    assert text.endswith("## Next\n")
+    (tmp_path / "plain.md").write_text("no markers", encoding="utf-8")
+    assert update_readme(tmp_path / "plain.md", "x\ny") is False

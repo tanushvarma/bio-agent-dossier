@@ -110,7 +110,8 @@ class BioAgent:
             if budget.exceeded:
                 return result("aborted_budget", message=budget.message())
         except ValidationError as exc:
-            return result("error", message=f"Model output did not match the dossier schema: {exc.error_count()} error(s)")
+            return result("error",
+                          message=f"Model output did not match the dossier schema: {exc.error_count()} error(s)")
         except Exception as exc:  # provider/network failure: report, don't crash the caller
             return result("error", message=f"{type(exc).__name__}: {exc}")
 

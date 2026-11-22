@@ -19,7 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.40"]
-app = ["streamlit>=1.39"]
+app = ["streamlit>=1.50", "pandas>=2.0"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
@@ -38,11 +38,8 @@ addopts = "-ra"
 line-length = 120
 target-version = "py310"
 src = ["src", "tests", "evals"]
-# Legacy flat modules are kept running until Phase 2 replaces them; they are not linted.
-extend-exclude = [
-    "agent.py", "app.py", "dossier_synthesizer.py", "gemini_client.py",
-    "ncbi_extractor.py", "paper_miner.py", "state.py", "sync_secrets.py", "tools.py",
-]
+# legacy/ holds the previous chat app for reference; it is not installed, linted or tested.
+extend-exclude = ["legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]

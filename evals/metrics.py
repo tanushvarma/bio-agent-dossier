@@ -20,12 +20,8 @@ from collections.abc import Iterable
 from typing import Any
 
 from bioagent.guardrails import drug_name_matches
+from bioagent.pricing import cost_usd
 from bioagent.schemas import RunResult
-
-# USD per 1M tokens (input, output). Override with --price-in/--price-out.
-PRICES: dict[tuple[str, str], tuple[float, float]] = {
-    ("gemini", "gemini-3.5-flash-lite"): (0.30, 2.50),
-}
 
 
 def percentile(values: Iterable[float], q: float) -> float | None:
@@ -45,12 +41,6 @@ def _mean(values: Iterable[float | None]) -> float | None:
 
 def _ratio(num: float, den: float) -> float | None:
     return num / den if den else None
-
-
-def cost_usd(provider: str, model: str, tin: int, tout: int,
-             prices: dict[tuple[str, str], tuple[float, float]] | None = None) -> float | None:
-    p = (prices or PRICES).get((provider, model))
-    return None if p is None else (tin * p[0] + tout * p[1]) / 1e6
 
 
 def _matches(name: str, chembl: str | None, ref: dict[str, Any]) -> bool:

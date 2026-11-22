@@ -8,7 +8,9 @@ from typing import Literal
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_SRC_ROOT = Path(__file__).resolve().parents[2]
+# Source checkout (editable install): the repo root. Installed wheel (e.g. Docker): the working directory.
+PROJECT_ROOT = _SRC_ROOT if (_SRC_ROOT / "pyproject.toml").exists() else Path.cwd()
 
 
 class ConfigError(RuntimeError):

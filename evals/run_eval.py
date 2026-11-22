@@ -24,10 +24,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from bioagent.config import ConfigError, get_settings  # noqa: E402
+from bioagent.pricing import PRICES  # noqa: E402
 from bioagent.schemas import RunResult  # noqa: E402
-from evals.metrics import PRICES, aggregate, score_case, to_markdown  # noqa: E402
+from evals.metrics import aggregate, score_case, to_markdown  # noqa: E402
 
 DATASET = ROOT / "evals" / "dataset_50.jsonl"
+README = ROOT / "README.md"
+BEGIN, END = "<!-- benchmark:begin -->", "<!-- benchmark:end -->"
 DEFAULT_OUT = ROOT / "evals" / "results" / "latest.json"
 
 
@@ -96,6 +99,18 @@ def evaluate(cases: list[dict[str, Any]], agent_factory: Callable[[], Any], out:
     return report
 
 
+def update_readme(readme: Path, summary_md: str) -> bool:
+    """Replace the text between the benchmark markers in the README with the generated summary."""
+    text = readme.read_text(encoding="utf-8")
+    if BEGIN not in text or END not in text:
+        return False
+    head, rest = text.split(BEGIN, 1)
+    _, tail = rest.split(END, 1)
+    body = summary_md.split("\n", 1)[1].strip()          # drop the summary's own H1
+    readme.write_text(f"{head}{BEGIN}\n{body}\n{END}{tail}", encoding="utf-8")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Run and score the bioagent benchmark.")
     ap.add_argument("--dataset", type=Path, default=DATASET)
@@ -104,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--price-in", type=float, help="USD per 1M input tokens (overrides the built-in table)")
     ap.add_argument("--price-out", type=float, help="USD per 1M output tokens")
+    ap.add_argument("--update-readme", action="store_true",
+                    help="paste the summary table into README.md between the benchmark markers")
     args = ap.parse_args(argv)
 
     if not args.dataset.exists():
@@ -133,6 +150,13 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print((args.out.parent / "summary.md").read_text(encoding="utf-8"))
     print(f"Full results: {args.out}")
+    if args.update_readme:
+        if args.limit:
+            print("Not updating README from a --limit run; run the full benchmark.", file=sys.stderr)
+        elif update_readme(README, (args.out.parent / "summary.md").read_text(encoding="utf-8")):
+            print("README.md benchmark section updated.")
+        else:
+            print(f"README.md has no {BEGIN} / {END} markers; not updated.", file=sys.stderr)
     return 0 if report["metrics"]["n_errors"] == 0 else 2
 
 
