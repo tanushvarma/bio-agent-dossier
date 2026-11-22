@@ -115,7 +115,6 @@ def toolbox(world: World) -> Toolbox:
                    EuropePmcClient(make_http("europepmc", world)))
 
 
-# ------------------------------------------------------------------ fake LLM
 class FakeSession:
     def __init__(self, llm: FakeLLM, tools: list[ToolSpec]):
         self.llm, self.tools = llm, tools

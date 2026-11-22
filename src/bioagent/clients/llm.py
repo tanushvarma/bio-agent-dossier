@@ -20,6 +20,10 @@ from ..config import ConfigError, Settings
 T = TypeVar("T", bound=BaseModel)
 
 
+class LLMError(RuntimeError):
+    """A provider call failed after retries, or returned an unusable response."""
+
+
 class ToolSpec(BaseModel):
     name: str
     description: str
@@ -59,7 +63,6 @@ class LLM(Protocol):
     def session(self, system: str, user: str, tools: list[ToolSpec]) -> LLMSession: ...
 
 
-# ------------------------------------------------------------------ JSON schema helpers
 def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
     """Replace every {"$ref": "#/$defs/X"} with the definition and drop $defs/titles.
     Both providers accept the result; neither has to resolve references."""
@@ -101,7 +104,6 @@ def _append_user_text(history: list, role_of: Callable[[Any], str], make_text: C
         history.append(new_user(make_text(text)))
 
 
-# ------------------------------------------------------------------ Gemini
 def _gemini_retryable(exc: BaseException) -> bool:
     code = getattr(exc, "code", None)
     return code in (429, 500, 502, 503, 504)
@@ -139,8 +141,13 @@ class _GeminiSession:
         self._native_ids: dict[str, str | None] = {}
 
     def _generate(self, config: Any) -> Any:
-        return self.llm._retry(self.llm.client.models.generate_content, model=self.llm.model,
-                               contents=self.contents, config=config)
+        from google.genai import errors
+
+        try:
+            return self.llm._retry(self.llm.client.models.generate_content, model=self.llm.model,
+                                   contents=self.contents, config=config)
+        except errors.APIError as exc:
+            raise LLMError(f"Gemini API error {exc.code}: {exc.message}") from exc
 
     @staticmethod
     def _usage(resp: Any) -> tuple[int, int]:
@@ -189,7 +196,6 @@ class _GeminiSession:
         return schema.model_validate_json(resp.text or ""), tin, tout
 
 
-# ------------------------------------------------------------------ Anthropic
 class AnthropicLLM:
     provider = "anthropic"
 
@@ -215,8 +221,13 @@ class _AnthropicSession:
         self.tools = [{"name": t.name, "description": t.description, "input_schema": t.parameters} for t in tools]
 
     def _create(self, **kw: Any) -> Any:
-        return self.llm.client.messages.create(model=self.llm.model, max_tokens=self.llm.max_tokens,
-                                               system=self.system, messages=self.messages, **kw)
+        import anthropic
+
+        try:
+            return self.llm.client.messages.create(model=self.llm.model, max_tokens=self.llm.max_tokens,
+                                                   system=self.system, messages=self.messages, **kw)
+        except anthropic.APIError as exc:
+            raise LLMError(f"Anthropic API error: {exc}") from exc
 
     @staticmethod
     def _usage(resp: Any) -> tuple[int, int]:
@@ -246,7 +257,7 @@ class _AnthropicSession:
         resp = self._create(tools=[*self.tools, submit], tool_choice={"type": "tool", "name": "submit_dossier"})
         block = next((b for b in resp.content if getattr(b, "type", "") == "tool_use"), None)
         if block is None:
-            raise ValueError("model did not return the submit_dossier tool call")
+            raise LLMError("model did not return the submit_dossier tool call")
         tin, tout = self._usage(resp)
         return schema.model_validate(block.input), tin, tout
 

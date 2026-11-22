@@ -25,7 +25,6 @@ from bioagent.schemas import RunResult  # noqa: E402
 RESULTS = Path(os.environ.get("BIOAGENT_EVAL_RESULTS", ROOT / "evals" / "results" / "latest.json"))
 
 
-# ------------------------------------------------------------------ helpers
 @st.cache_resource(show_spinner=False)
 def get_agent() -> BioAgent:
     return BioAgent.from_settings(get_settings())
@@ -45,7 +44,6 @@ def _load_results(path: str, mtime: float) -> dict[str, Any]:     # mtime busts 
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-# ------------------------------------------------------------------ tab 1
 def render_verification(res: RunResult) -> None:
     v = res.verification
     if v is None:
@@ -153,7 +151,6 @@ def dossier_tab() -> None:
                        "application/json")
 
 
-# ------------------------------------------------------------------ tab 2
 HEADLINE = [("target_resolution_acc", "Target resolution", "pct"), ("drug_precision", "Drug precision", "pct"),
             ("drug_recall", "Drug recall", "pct"), ("hallucination_rate", "Hallucination rate", "pct"),
             ("citation_validity", "Citation validity", "pct"),
@@ -218,7 +215,6 @@ def eval_tab() -> None:
     render_trace(res)
 
 
-# ------------------------------------------------------------------ page
 def main() -> None:
     st.set_page_config(page_title="bioagent: target dossiers", layout="wide")
     st.title("bioagent")

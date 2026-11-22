@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -30,7 +30,6 @@ def norm_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
 
 
-# ----------------------------------------------------------------- client results
 class SearchHit(BaseModel):
     id: str
     name: str
@@ -91,7 +90,6 @@ class Article(BaseModel):
     doi: str | None = None
 
 
-# ----------------------------------------------------------------- tool trace
 class ReturnedIds(BaseModel):
     ensembl_ids: list[str] = Field(default_factory=list)
     entrez_ids: list[str] = Field(default_factory=list)
@@ -171,7 +169,6 @@ class ToolTrace(BaseModel):
         return merged
 
 
-# ----------------------------------------------------------------- resolution
 class Resolution(BaseModel):
     status: Literal["resolved", "ambiguous", "not_found"]
     query: str
@@ -190,7 +187,6 @@ class Abstention(BaseModel):
     candidates: list[str] = Field(default_factory=list)
 
 
-# ----------------------------------------------------------------- claims + dossier
 class Claim(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -250,7 +246,7 @@ class TargetDossier(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
     provider: str = ""
     model: str = ""
-    generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    generated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class UnverifiedClaim(BaseModel):
@@ -282,20 +278,3 @@ class RunResult(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     total_latency_ms: float = 0.0
-
-
-class EvalResult(BaseModel):
-    """One benchmark row (filled by evals/run_eval.py in a later phase)."""
-
-    gene_symbol: str
-    expected_ids: list[str] = Field(default_factory=list)
-    retrieved_ids: list[str] = Field(default_factory=list)
-    precision: float | None = None
-    recall: float | None = None
-    n_claims: int = 0
-    n_unverified: int = 0
-    abstained: bool = False
-    latency_ms: float = 0.0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost_usd: float | None = None

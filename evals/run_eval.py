@@ -11,14 +11,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import sys
 import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
@@ -28,6 +31,7 @@ from bioagent.pricing import PRICES  # noqa: E402
 from bioagent.schemas import RunResult  # noqa: E402
 from evals.metrics import aggregate, score_case, to_markdown  # noqa: E402
 
+log = logging.getLogger("bioagent.eval")
 DATASET = ROOT / "evals" / "dataset_50.jsonl"
 README = ROOT / "README.md"
 BEGIN, END = "<!-- benchmark:begin -->", "<!-- benchmark:end -->"
@@ -58,7 +62,7 @@ def select(cases: list[dict[str, Any]], limit: int | None) -> list[dict[str, Any
 
 
 def run_cases(cases: list[dict[str, Any]], agent_factory: Callable[[], Any], concurrency: int = 3,
-              progress: Callable[[str], None] = print) -> list[tuple[dict, RunResult]]:
+              progress: Callable[[str], None] = log.info) -> list[tuple[dict, RunResult]]:
     """One agent per worker thread (separate HTTP clients and LLM sessions)."""
     local = threading.local()
 
@@ -68,7 +72,7 @@ def run_cases(cases: list[dict[str, Any]], agent_factory: Callable[[], Any], con
         t0 = time.perf_counter()
         try:
             res = local.agent.run(case["gene_symbol"])
-        except Exception as exc:  # the agent returns errors itself; this is a last resort
+        except (RuntimeError, OSError, httpx.HTTPError) as exc:   # agent.run reports expected failures itself
             res = RunResult(status="error", query=case["gene_symbol"], message=f"{type(exc).__name__}: {exc}",
                             total_latency_ms=(time.perf_counter() - t0) * 1000)
         progress(f"  {case['case_id']:12s} {case['gene_symbol']:11s} -> {res.status:14s} "
@@ -81,13 +85,13 @@ def run_cases(cases: list[dict[str, Any]], agent_factory: Callable[[], Any], con
 
 def evaluate(cases: list[dict[str, Any]], agent_factory: Callable[[], Any], out: Path, *,
              concurrency: int = 3, meta: dict[str, Any] | None = None,
-             prices: dict | None = None, progress: Callable[[str], None] = print) -> dict[str, Any]:
-    started = datetime.now(timezone.utc).isoformat()
+             prices: dict | None = None, progress: Callable[[str], None] = log.info) -> dict[str, Any]:
+    started = datetime.now(UTC).isoformat()
     pairs = run_cases(cases, agent_factory, concurrency, progress)
     scores = [score_case(c, r, prices or PRICES) for c, r in pairs]
     metrics = aggregate(scores)
     llm = next((call for _, r in pairs for call in r.trace.llm_calls), None)
-    meta = {"started_at": started, "finished_at": datetime.now(timezone.utc).isoformat(),
+    meta = {"started_at": started, "finished_at": datetime.now(UTC).isoformat(),
             "provider": llm.provider if llm else None, "model": llm.model if llm else None,
             "concurrency": concurrency, **(meta or {})}
     report = {"meta": meta, "metrics": metrics,
@@ -123,16 +127,17 @@ def main(argv: list[str] | None = None) -> int:
                     help="paste the summary table into README.md between the benchmark markers")
     args = ap.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     if not args.dataset.exists():
-        print(f"{args.dataset} not found. Build it first: python evals/build_dataset.py", file=sys.stderr)
+        log.error("%s not found. Build it first: python evals/build_dataset.py", args.dataset)
         return 1
     from bioagent.agent import BioAgent
 
     settings = get_settings()
     try:
-        BioAgent.from_settings(settings)          # fail fast on missing keys, before spawning workers
+        BioAgent.from_settings(settings)
     except ConfigError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
+        log.error("Configuration error: %s", exc)
         return 1
     prices = dict(PRICES)
     if args.price_in is not None and args.price_out is not None:
@@ -141,22 +146,21 @@ def main(argv: list[str] | None = None) -> int:
 
     raw = args.dataset.read_bytes()
     cases = select(load_cases(args.dataset), args.limit)
-    print(f"Running {len(cases)} cases with concurrency {args.concurrency}...")
+    log.info("Running %d cases with concurrency %d", len(cases), args.concurrency)
     report = evaluate(cases, lambda: BioAgent.from_settings(settings), args.out, concurrency=args.concurrency,
                       prices=prices, meta={"dataset": str(args.dataset.relative_to(ROOT))
                                            if args.dataset.is_relative_to(ROOT) else str(args.dataset),
                                            "dataset_sha256": hashlib.sha256(raw).hexdigest(),
                                            "limit": args.limit})
-    print()
     print((args.out.parent / "summary.md").read_text(encoding="utf-8"))
-    print(f"Full results: {args.out}")
+    log.info("Full results: %s", args.out)
     if args.update_readme:
         if args.limit:
-            print("Not updating README from a --limit run; run the full benchmark.", file=sys.stderr)
+            log.warning("Not updating README from a --limit run; run the full benchmark.")
         elif update_readme(README, (args.out.parent / "summary.md").read_text(encoding="utf-8")):
-            print("README.md benchmark section updated.")
+            log.info("README.md benchmark section updated.")
         else:
-            print(f"README.md has no {BEGIN} / {END} markers; not updated.", file=sys.stderr)
+            log.warning("README.md has no %s / %s markers; not updated.", BEGIN, END)
     return 0 if report["metrics"]["n_errors"] == 0 else 2
 
 

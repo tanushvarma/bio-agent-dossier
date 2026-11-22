@@ -46,7 +46,6 @@ class NcbiClient:
         result = self._get("esummary.fcgi", {"db": db, "id": ",".join(ids)}).get("result") or {}
         return {uid: result[uid] for uid in result.get("uids") or [] if uid in result}
 
-    # ------------------------------------------------------------ gene
     @staticmethod
     def _gene(doc: dict[str, Any]) -> GeneRecord:
         aliases = [a.strip() for a in (doc.get("otheraliases") or "").split(",") if a.strip()]
@@ -65,7 +64,6 @@ class NcbiClient:
         docs = self.esummary("gene", [entrez_id])
         return self._gene(docs[entrez_id]) if entrez_id in docs else None
 
-    # ------------------------------------------------------------ pubmed
     def search_pubmed(self, term: str, retmax: int = 10) -> list[PubmedRecord]:
         ids = self.esearch("pubmed", term, retmax=retmax, sort="relevance")
         docs = self.esummary("pubmed", ids)

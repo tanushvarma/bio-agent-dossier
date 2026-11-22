@@ -20,7 +20,6 @@ from .schemas import (
 from .tools import Toolbox
 
 
-# ------------------------------------------------------------------ pre-flight
 def preflight(gene_symbol: str, toolbox: Toolbox, trace: ToolTrace) -> Resolution | Abstention:
     """Resolve the input to canonical IDs or abstain. Recorded in the trace as step 0."""
     symbol = (gene_symbol or "").strip()
@@ -42,7 +41,6 @@ def preflight(gene_symbol: str, toolbox: Toolbox, trace: ToolTrace) -> Resolutio
     return res
 
 
-# ------------------------------------------------------------------ post-flight
 def drug_name_matches(claimed: str, returned: str) -> bool:
     a, b = norm_name(claimed), norm_name(returned)
     return bool(a) and (a == b or a.startswith(b + " ") or b.startswith(a + " "))   # tolerates salt forms
@@ -105,7 +103,6 @@ def verify_citations(dossier: TargetDossier, trace: ToolTrace,
     return verified, report
 
 
-# ------------------------------------------------------------------ budget
 class TokenBudget:
     """Input + output tokens across every LLM call in one run."""
 

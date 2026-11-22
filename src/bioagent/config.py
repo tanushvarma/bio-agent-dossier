@@ -26,7 +26,6 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    # LLM
     llm_provider: Literal["gemini", "anthropic"] = "gemini"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
@@ -37,7 +36,6 @@ class Settings(BaseSettings):
     ncbi_email: str | None = None
     ncbi_api_key: str | None = None
 
-    # HTTP + cache
     http_timeout_s: float = Field(20.0, validation_alias=AliasChoices("BIOAGENT_HTTP_TIMEOUT_S", "http_timeout_s"))
     cache_enabled: bool = Field(True, validation_alias=AliasChoices("BIOAGENT_CACHE_ENABLED", "cache_enabled"))
     cache_path: Path = Field(
@@ -45,7 +43,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("BIOAGENT_CACHE_PATH", "cache_path"),
     )
 
-    # Agent guardrails
     max_steps: int = Field(6, ge=2, le=12, validation_alias=AliasChoices("BIOAGENT_MAX_STEPS", "max_steps"))
     max_tokens_per_run: int = Field(
         60_000, ge=1_000, validation_alias=AliasChoices("BIOAGENT_MAX_TOKENS_PER_RUN", "max_tokens_per_run")

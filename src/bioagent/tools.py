@@ -26,7 +26,6 @@ from .schemas import (
 ABSTRACT_CHARS = 1200
 
 
-# ------------------------------------------------------------------ argument schemas
 class _Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -58,10 +57,10 @@ class SearchLiteratureArgs(_Args):
 
 @dataclass
 class ToolOutput:
-    payload: dict[str, Any]                       # what the model sees
+    payload: dict[str, Any]
     returned_ids: ReturnedIds = field(default_factory=ReturnedIds)
     evidence: list[EvidenceItem] = field(default_factory=list)
-    result: Any = None                            # typed object for in-process callers
+    result: Any = None
 
 
 @dataclass
@@ -87,7 +86,6 @@ def _exact(a: str | None, b: str) -> bool:
     return bool(a) and a.upper() == b.upper()  # type: ignore[union-attr]
 
 
-# ------------------------------------------------------------------ resolution (shared with guardrails)
 def resolve_symbol(symbol: str, ot: OpenTargetsClient, ncbi: NcbiClient | None) -> Resolution:
     """Map a symbol to canonical IDs. Exact approved-symbol matches only: an alias or a near miss
     returns not_found with candidates, so callers abstain instead of guessing."""
@@ -116,7 +114,6 @@ def resolve_symbol(symbol: str, ot: OpenTargetsClient, ncbi: NcbiClient | None) 
                       ensembl_id=ensembl_id, entrez_id=entrez_id, candidates=candidates, notes=notes)
 
 
-# ------------------------------------------------------------------ toolbox
 class Toolbox:
     def __init__(self, ot: OpenTargetsClient, ncbi: NcbiClient | None, lit: EuropePmcClient,
                  clock: Callable[[], float] = time.perf_counter):
@@ -185,7 +182,6 @@ class Toolbox:
         trace.tool_calls.append(record)
         return Execution(record, output)
 
-    # ------------------------------------------------------------ tool bodies
     def _resolve_target(self, a: ResolveTargetArgs) -> ToolOutput:
         r = resolve_symbol(a.gene_symbol, self.ot, self.ncbi)
         ids = ReturnedIds(ensembl_ids=[r.ensembl_id] if r.ensembl_id else [],

@@ -86,7 +86,6 @@ def _fixture_results() -> dict[str, RunResult]:
     return {"pos-001": egfr, "pos-002": ache, "neg-sym-001": fake, "neg-pair-001": pair}
 
 
-# ------------------------------------------------------------------ unit metrics
 def test_percentile_matches_numpy_linear():
     assert percentile([1, 2, 3, 4], 50) == 2.5
     assert percentile([4, 1, 3, 2], 95) == pytest.approx(3.85)
@@ -153,8 +152,6 @@ def test_aggregate_on_fixture_set():
     assert "`pos-002` ACHE" in md and "| neurology | 1 |" in md
 
 
-# ------------------------------------------------------------------ harness end to end
-
 def test_evaluate_writes_results_and_summary(tmp_path):
     res = _fixture_results()
     agents = {"EGFR": res["pos-001"], "ACHE": res["pos-002"], "FAKEG1": res["neg-sym-001"]}
@@ -186,7 +183,6 @@ def test_limit_mixes_case_types():
     assert select(cases, None) == cases
 
 
-# ------------------------------------------------------------------ dataset builder
 @pytest.mark.parametrize("stage,rank", [("APPROVAL", 4), ("Approved", 4), ("PHASE_4", 4), ("PHASE_3", 3),
                                         ("Phase III", 3), ("PHASE_2_3", 2.5), ("PHASE_2", 2), ("EARLY_PHASE_1", 1),
                                         (None, 0), ("UNKNOWN", 0)])
@@ -204,7 +200,7 @@ def test_builder_verifies_every_record(world):
         cases, meta = build(ot, ncbi,
                             seeds=[("oncology", "EGFR", "OSIMERTINIB"), ("oncology", "EGFR", "DONEPEZIL")],
                             quotas={"oncology": 2}, fakes=["EGFR", "FAKEG1", "bad symbol!"],
-                            pairs=[("EGFR", "GEFITINIB"), ("EGFR", "DONEPEZIL")], log=lambda m: None)
+                            pairs=[("EGFR", "GEFITINIB"), ("EGFR", "DONEPEZIL")], emit=lambda m: None)
     finally:
         SEARCH.pop("DONEPEZIL"), SEARCH.pop("GEFITINIB")
     assert [(c["case_id"], c["gene_symbol"]) for c in cases] == [("pos-001", "EGFR"), ("neg-sym-001", "FAKEG1"),

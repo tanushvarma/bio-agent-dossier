@@ -12,10 +12,11 @@ import time
 from collections.abc import Callable
 from typing import Literal
 
+import httpx
 from pydantic import ValidationError
 
 from . import guardrails
-from .clients.llm import LLM, ToolResult, drop_properties, inline_refs, make_llm
+from .clients.llm import LLM, LLMError, ToolResult, drop_properties, inline_refs, make_llm
 from .config import Settings, get_settings
 from .schemas import Abstention, DossierDraft, LLMCall, Resolution, RunResult, TargetDossier, ToolTrace
 from .tools import Toolbox
@@ -82,7 +83,6 @@ class BioAgent:
 
         session = self.llm.session(SYSTEM_PROMPT, _user_prompt(pre), self.toolbox.specs())
         try:
-            # ---- tool steps 1 .. max_steps-1
             for step in range(1, self.max_steps):
                 t0 = self._clock()
                 turn = session.next()
@@ -95,14 +95,13 @@ class BioAgent:
                     break
                 results = []
                 for i, call in enumerate(turn.tool_calls):
-                    if i >= self.max_calls_per_step:     # every requested call still gets an answer
+                    if i >= self.max_calls_per_step:     # providers require an answer for every requested call
                         content = {"status": "error", "error": f"skipped: max {self.max_calls_per_step} calls per step"}
                     else:
                         content = self.toolbox.execute(call.name, call.args, step, trace).llm_content()
                     results.append(ToolResult(id=call.id, name=call.name, content=content))
                 session.add_tool_results(results)
 
-            # ---- final step: structured output
             t0 = self._clock()
             draft, tin, tout = session.finalize(DossierDraft, FINALIZE_INSTRUCTION, self._draft_schema)
             self._llm_call(trace, len(trace.llm_calls) + 1, "finalize", t0, tin, tout)
@@ -112,7 +111,7 @@ class BioAgent:
         except ValidationError as exc:
             return result("error",
                           message=f"Model output did not match the dossier schema: {exc.error_count()} error(s)")
-        except Exception as exc:  # provider/network failure: report, don't crash the caller
+        except (LLMError, httpx.HTTPError) as exc:
             return result("error", message=f"{type(exc).__name__}: {exc}")
 
         dossier = TargetDossier(

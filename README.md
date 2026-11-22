@@ -88,7 +88,7 @@ Metric definitions (all computed in `evals/metrics.py`, no LLM-as-judge):
 
 ## Quickstart
 
-Requires Python 3.10+, a Gemini API key (or an Anthropic key with `LLM_PROVIDER=anthropic`) and a
+Requires Python 3.11+, a Gemini API key (or an Anthropic key with `LLM_PROVIDER=anthropic`) and a
 contact email for NCBI E-utilities.
 
 ```bash
@@ -121,6 +121,10 @@ Docker (secrets are passed at run time, never baked into the image):
 docker build -t bioagent .
 docker run --rm -p 8501:8501 --env-file .env -v bioagent-cache:/app/.cache bioagent
 ```
+
+Hosted (Streamlit Community Cloud or any host that installs `requirements.txt`): set the entry
+point to `app/streamlit_app.py` and add `GEMINI_API_KEY` and `NCBI_EMAIL` as top-level secrets.
+Container hosts can use the `Dockerfile` directly.
 
 ### Evaluation
 

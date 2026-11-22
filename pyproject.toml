@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Grounded target-dossier agent: Open Targets, NCBI and Europe PMC tools with citation verification."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
     "tenacity>=8.2",
@@ -36,7 +36,7 @@ addopts = "-ra"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests", "evals"]
 # legacy/ holds the previous chat app for reference; it is not installed, linted or tested.
 extend-exclude = ["legacy"]

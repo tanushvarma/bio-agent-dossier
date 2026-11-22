@@ -20,10 +20,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,7 @@ from bioagent.guardrails import drug_name_matches  # noqa: E402
 from bioagent.schemas import SYMBOL_PATTERN, KnownDrug  # noqa: E402
 from bioagent.tools import resolve_symbol  # noqa: E402
 
+log = logging.getLogger("bioagent.build_dataset")
 OUT = ROOT / "evals" / "dataset_50.jsonl"
 QUOTAS = {"oncology": 13, "immunology": 12, "cardiometabolic": 13, "neurology": 12}
 
@@ -153,7 +156,8 @@ def build_negative_pair(symbol: str, drug: str, ot: OpenTargetsClient,
 
 
 def build(ot: OpenTargetsClient, ncbi: NcbiClient, seeds=SEEDS, quotas=QUOTAS, fakes=FAKE_SYMBOLS,
-          pairs=INVALID_PAIRS, n_fake: int = 5, n_pairs: int = 5, log=print) -> tuple[list[dict], dict]:
+          pairs=INVALID_PAIRS, n_fake: int = 5, n_pairs: int = 5,
+          emit: Callable[[str], None] = log.info) -> tuple[list[dict], dict]:
     cases: list[dict] = []
     skipped: list[dict] = []
     stages: Counter = Counter()
@@ -166,7 +170,7 @@ def build(ot: OpenTargetsClient, ncbi: NcbiClient, seeds=SEEDS, quotas=QUOTAS, f
             rec, why = None, f"{type(exc).__name__}: {exc}"
         if rec is None:
             skipped.append({"seed": label, "reason": why})
-            log(f"  skip {label}: {why}")
+            emit(f"  skip {label}: {why}")
         return rec
 
     for area, symbol, drug in seeds:
@@ -176,7 +180,7 @@ def build(ot: OpenTargetsClient, ncbi: NcbiClient, seeds=SEEDS, quotas=QUOTAS, f
         if rec:
             filled[area] += 1
             cases.append(rec)
-            log(f"  ok   {area:15s} {symbol:9s} {rec['drug']['name']:18s} {len(rec['expected_drugs'])} drugs")
+            emit(f"  ok   {area:15s} {symbol:9s} {rec['drug']['name']:18s} {len(rec['expected_drugs'])} drugs")
     for symbol in fakes:
         if sum(c["type"] == "negative_symbol" for c in cases) >= n_fake:
             break
@@ -205,40 +209,40 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="overwrite an existing frozen dataset")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.out.exists() and not args.force:
-        print(f"{args.out} already exists (frozen). Use --force to rebuild.", file=sys.stderr)
+        log.error("%s already exists (frozen). Use --force to rebuild.", args.out)
         return 1
     s = get_settings()
-    nocache = DiskCache(None, enabled=False)          # always build from fresh API responses
+    nocache = DiskCache(None, enabled=False)
     try:
         ncbi = NcbiClient(JsonHttp("ncbi", cache=nocache, throttle=ncbi_throttle(s.ncbi_api_key)),
                           s.ncbi_email, s.ncbi_api_key)
     except ConfigError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
+        log.error("Configuration error: %s", exc)
         return 1
     ot = OpenTargetsClient(JsonHttp("opentargets", cache=nocache, max_attempts=2))
-    try:                                               # fail fast if the APIs are unreachable
+    try:
         ot.search("EGFR")
         ncbi.esearch("gene", "EGFR[sym] AND 9606[taxid]", retmax=1)
     except (ApiError, httpx.HTTPError) as exc:
-        print(f"Cannot reach Open Targets / NCBI ({type(exc).__name__}: {exc}). Check your network.",
-              file=sys.stderr)
+        log.error("Cannot reach Open Targets / NCBI (%s: %s). Check your network.", type(exc).__name__, exc)
         return 1
     ot.http.max_attempts = 4
-    print("Building benchmark (live Open Targets + NCBI)...")
+    log.info("Building benchmark (live Open Targets + NCBI)...")
     cases, meta = build(ot, ncbi)
     n_pos = meta["counts"].get("positive", 0)
     if n_pos < sum(QUOTAS.values()):
-        print(f"WARNING: only {n_pos}/{sum(QUOTAS.values())} positive cases passed checks; add seeds.",
-              file=sys.stderr)
+        log.warning("Only %d/%d positive cases passed checks; add seeds.", n_pos, sum(QUOTAS.values()))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(json.dumps(c, sort_keys=True) + "\n" for c in cases)
     args.out.write_text(body, encoding="utf-8")
-    meta.update(built_at=datetime.now(timezone.utc).isoformat(), n_cases=len(cases),
+    meta.update(built_at=datetime.now(UTC).isoformat(), n_cases=len(cases),
                 sha256=hashlib.sha256(body.encode()).hexdigest(), file=args.out.name)
     args.out.with_suffix(".meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    print(f"Wrote {len(cases)} cases to {args.out} ({meta['counts']}); {len(meta['skipped'])} seeds skipped.")
-    print("Clinical stage values seen:", meta["clinical_stages_seen"])
+    log.info("Wrote %d cases to %s (%s); %d seeds skipped.", len(cases), args.out, meta["counts"],
+             len(meta["skipped"]))
+    log.info("Clinical stage values seen: %s", meta["clinical_stages_seen"])
     return 0
 
 

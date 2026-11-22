@@ -129,7 +129,6 @@ def aggregate(scores: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-# ------------------------------------------------------------------ markdown
 _ROWS = [
     ("target_resolution_acc", "Target resolution accuracy", "pct"),
     ("drug_precision", "Drug precision (macro)", "pct"),

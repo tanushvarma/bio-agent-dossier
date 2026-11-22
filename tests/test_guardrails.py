@@ -10,7 +10,6 @@ from bioagent.tools import Toolbox
 from conftest import EGFR, ERBB2, make_http
 
 
-# ------------------------------------------------------------------ pre-flight
 @pytest.mark.parametrize("bad", ["", "   ", "EGFR inhibitor", "rm -rf", "-EGFR", "A" * 25, "EGFR;"])
 def test_invalid_symbol_abstains_without_network(toolbox, world, bad):
     trace = ToolTrace()
@@ -59,7 +58,6 @@ def test_resolver_outage_abstains(world):
     assert isinstance(out, Abstention) and out.reason == "lookup_failed"
 
 
-# ------------------------------------------------------------------ citation verifier
 @pytest.fixture
 def gathered(toolbox) -> ToolTrace:
     trace = ToolTrace()
@@ -129,7 +127,6 @@ def test_no_claims_gives_no_score(gathered):
     assert rep.grounding_score is None and rep.n_claims == 0
 
 
-# ------------------------------------------------------------------ budget
 def test_token_budget():
     b = TokenBudget(1000)
     b.add(600, 300)
